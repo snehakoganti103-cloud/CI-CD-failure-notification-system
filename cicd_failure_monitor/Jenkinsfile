@@ -1,0 +1,44 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Build') {
+            steps {
+                echo 'Replace this with your real build command'
+                // Example for Python:
+                // sh 'python -m compileall .'
+            }
+        }
+        stage('Test') {
+            steps {
+                echo 'Replace this with your real test command'
+                // Example:
+                // sh 'python -m pytest'
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                def result = currentBuild.currentResult ?: 'UNKNOWN'
+                def reason = result == 'SUCCESS' ? '' : 'Jenkins pipeline failed. Open the build log for the exact failing step.'
+                withCredentials([string(credentialsId: 'monitor-webhook-token', variable: 'MONITOR_TOKEN')]) {
+                    sh """
+                      curl -sS -X POST '${env.MONITOR_URL}/webhooks/jenkins' \
+                        -H 'Content-Type: application/json' \
+                        -H "X-Webhook-Token: \${MONITOR_TOKEN}" \
+                        -d '{
+                          "project": "${env.JOB_NAME}",
+                          "branch": "${env.BRANCH_NAME ?: 'unknown'}",
+                          "build_number": "${env.BUILD_NUMBER}",
+                          "status": "${result}",
+                          "build_url": "${env.BUILD_URL}",
+                          "failure_reason": "${reason}"
+                        }'
+                    """
+                }
+            }
+        }
+    }
+}

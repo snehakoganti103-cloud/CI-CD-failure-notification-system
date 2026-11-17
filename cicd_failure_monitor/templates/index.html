@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CI/CD Failure Monitor</title>
+  <style>
+    body{font-family:Arial,sans-serif;background:#f4f6fb;margin:0;color:#202638}
+    header{background:#172554;color:white;padding:26px 5%}
+    header h1{margin:0 0 7px} header p{margin:0;color:#dbeafe}
+    main{max-width:1200px;margin:28px auto;padding:0 18px}
+    .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+    .card,.panel{background:white;border-radius:12px;padding:18px;box-shadow:0 2px 12px #17255412}
+    .number{font-size:30px;font-weight:bold;margin-top:8px}
+    .panel{margin-top:22px;overflow-x:auto}
+    table{width:100%;border-collapse:collapse;min-width:900px}
+    th,td{text-align:left;padding:12px;border-bottom:1px solid #e8eaf0;vertical-align:top}
+    th{color:#536078;font-size:13px}
+    .badge{padding:5px 9px;border-radius:20px;font-size:12px;font-weight:bold}
+    .SUCCESS{background:#dcfce7;color:#166534}.FAILURE{background:#fee2e2;color:#991b1b}
+    .UNSTABLE{background:#fef3c7;color:#92400e}.ABORTED,.UNKNOWN{background:#e5e7eb;color:#374151}
+    a{color:#1d4ed8}small{color:#64748b}
+    .reason{max-width:260px;white-space:pre-wrap;overflow-wrap:anywhere}
+  </style>
+</head>
+<body>
+<header>
+  <h1>CI/CD Build Failure Monitor</h1>
+  <p>One dashboard for Jenkins, GitHub Actions and GitLab CI/CD</p>
+</header>
+<main>
+  <section class="cards">
+    <div class="card">Total builds<div class="number">{{ counts.total or 0 }}</div></div>
+    <div class="card">Successful<div class="number">{{ counts.success or 0 }}</div></div>
+    <div class="card">Failed<div class="number">{{ counts.failure or 0 }}</div></div>
+  </section>
+  <section class="panel">
+    <h2>Recent build activity</h2>
+    {% if builds %}
+    <table>
+      <thead><tr><th>Provider / Project</th><th>Build</th><th>Status</th><th>Failure details</th><th>Intelligent explanation</th><th>Received</th></tr></thead>
+      <tbody>
+      {% for b in builds %}
+        <tr>
+          <td><strong>{{ b.provider }}</strong><br>{{ b.project }}<br><small>{{ b.branch }}</small></td>
+          <td>#{{ b.build_number }}<br>{% if b.build_url %}<a href="{{ b.build_url }}" target="_blank" rel="noopener">Open build</a>{% endif %}</td>
+          <td><span class="badge {{ b.status }}">{{ b.status }}</span></td>
+          <td class="reason">{{ b.failure_reason or "—" }}</td>
+          <td><strong>{{ b.diagnosis }}</strong><br>{{ b.recommendation }}</td>
+          <td><small>{{ b.received_at }}</small></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p>No builds received yet. Configure one of the CI providers to send a test event.</p>
+    {% endif %}
+  </section>
+</main>
+</body>
+</html>

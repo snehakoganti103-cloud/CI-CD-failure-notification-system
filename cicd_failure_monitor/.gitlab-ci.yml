@@ -1,0 +1,46 @@
+stages:
+  - test
+
+test-job:
+  stage: test
+  image: python:3.12
+  script:
+    - pip install -r requirements.txt
+    - python -m compileall .
+    # Replace/add your actual test command, for example:
+    # - python -m pytest
+  after_script:
+    - |
+      if [ "$CI_JOB_STATUS" = "success" ]; then
+        RESULT="SUCCESS"
+        REASON=""
+      else
+        RESULT="FAILURE"
+        REASON="GitLab CI job failed. Open the job log for the exact failing command."
+      fi
+      export RESULT REASON
+      python - <<'PY'
+      import json, os, urllib.request
+      data = {
+        "project": os.getenv("CI_PROJECT_PATH", "Unknown project"),
+        "branch": os.getenv("CI_COMMIT_REF_NAME", ""),
+        "commit": os.getenv("CI_COMMIT_SHA", ""),
+        "build_number": os.getenv("CI_PIPELINE_IID", ""),
+        "status": os.getenv("RESULT", "UNKNOWN"),
+        "build_url": os.getenv("CI_JOB_URL", ""),
+        "failure_reason": os.getenv("REASON", "")
+      }
+      req = urllib.request.Request(
+        os.environ["MONITOR_URL"].rstrip("/") + "/webhooks/gitlab",
+        data=json.dumps(data).encode(),
+        headers={"Content-Type": "application/json",
+                 "X-Webhook-Token": os.environ["MONITOR_WEBHOOK_TOKEN"]},
+        method="POST"
+      )
+      try:
+        urllib.request.urlopen(req, timeout=10).read()
+      except Exception as exc:
+        print("Monitor notification failed:", exc)
+      PY
+  variables:
+    RESULT: "$CI_JOB_STATUS"

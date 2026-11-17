@@ -1,0 +1,67 @@
+name: CI and notify monitor
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run checks
+        run: |
+          python -m compileall .
+          # Add your tests here, for example:
+          # python -m pytest
+
+      - name: Notify central monitor
+        if: always()
+        env:
+          MONITOR_URL: ${{ secrets.MONITOR_URL }}
+          MONITOR_WEBHOOK_TOKEN: ${{ secrets.MONITOR_WEBHOOK_TOKEN }}
+          JOB_STATUS: ${{ job.status }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          COMMIT_SHA: ${{ github.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request
+          status = os.environ.get("JOB_STATUS", "unknown").upper()
+          data = {
+            "project": os.environ["REPOSITORY"],
+            "branch": os.environ["BRANCH"],
+            "commit": os.environ["COMMIT_SHA"],
+            "build_number": os.environ["RUN_NUMBER"],
+            "status": status,
+            "build_url": os.environ["RUN_URL"],
+            "failure_reason": "" if status == "SUCCESS" else
+              "GitHub Actions job did not succeed. Open the workflow run and inspect the first failed step."
+          }
+          req = urllib.request.Request(
+            os.environ["MONITOR_URL"].rstrip("/") + "/webhooks/github-actions",
+            data=json.dumps(data).encode(),
+            headers={"Content-Type": "application/json",
+                     "X-Webhook-Token": os.environ["MONITOR_WEBHOOK_TOKEN"]},
+            method="POST"
+          )
+          try:
+            urllib.request.urlopen(req, timeout=10).read()
+          except Exception as exc:
+            print("Monitor notification failed:", exc)
+          PY
